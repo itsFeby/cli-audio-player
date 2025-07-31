@@ -1,8 +1,10 @@
 #include <SFML/Audio.hpp>
 #include <iostream>
 #include <vector>
-#include <filesystem> // butuh -std=c++17
-#include <string>
+#include <filesystem>
+#include <thread>
+#include <atomic>
+#include <chrono>
 
 namespace fs = std::filesystem;
 
@@ -41,19 +43,55 @@ int main() {
         return 1;
     }
 
-    // Putar lagu
     sf::Music music;
     if (!music.openFromFile(laguList[pilihan - 1].string())) {
         std::cout << "Gagal buka file.\n";
         return 1;
     }
 
-    music.play();
-    std::cout << "Memutar: " << laguList[pilihan - 1].filename().string() << "\n";
-    std::cout << "Tekan ENTER buat berhenti...\n";
-    std::cin.ignore();
-    std::cin.get();
+    std::atomic<bool> stop(false);
+    std::atomic<bool> paused(false);
 
+    // Thread buat input kontrol
+    std::thread inputThread([&]() {
+        std::cout << "\nKontrol: [p]ause/resume, [s]top, [q]uit\n";
+        char cmd;
+        while (!stop) {
+            std::cin >> cmd;
+            if (cmd == 'p') {
+                if (!paused) {
+                    music.pause();
+                    std::cout << "⏸ Paused\n";
+                    paused = true;
+                } else {
+                    music.play();
+                    std::cout << "▶️ Resume\n";
+                    paused = false;
+                }
+            } else if (cmd == 's') {
+                music.stop();
+                std::cout << "⏹ Stopped\n";
+                paused = false;
+            } else if (cmd == 'q') {
+                stop = true;
+                music.stop();
+                std::cout << "👋 Keluar\n";
+                break;
+            }
+        }
+    });
+
+    // Main thread muter lagu
+    music.play();
+    std::cout << "\n🎶 Memutar: " << laguList[pilihan - 1].filename().string() << "\n";
+
+    // Tunggu sampai lagu selesai atau user quit
+    while (music.getStatus() == sf::SoundSource::Status::Playing && !stop) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    stop = true;
+    inputThread.join();
 
     return 0;
 }
