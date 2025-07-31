@@ -3,6 +3,9 @@
 Pemutar audio minimalis via terminal, ditulis dengan C++.  
 Gak ada UI, gak ada warna, cuma suara.
 
+Saat ini hanya support file dengan ekstensi .wav atau .ogg
+
+
 ## Fitur
 
 - Memindai folder `music/` untuk file `.wav`
