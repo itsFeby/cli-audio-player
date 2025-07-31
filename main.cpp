@@ -86,7 +86,11 @@ int main() {
     std::cout << "\n🎶 Memutar: " << laguList[pilihan - 1].filename().string() << "\n";
 
     // Tunggu sampai lagu selesai atau user quit
-    while (music.getStatus() == sf::SoundSource::Status::Playing && !stop) {
+    while (!stop) {
+        auto status = music.getStatus();
+        if (status == sf::SoundSource::Status::Stopped && !paused) {
+            break; // lagu selesai dan gak dalam keadaan pause
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
