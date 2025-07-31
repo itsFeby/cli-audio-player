@@ -1,0 +1,20 @@
+# Build files
+player
+*.o
+*.out
+*.exe
+
+# macOS trash
+.DS_Store
+
+# SFML CMake cache (kalau nanti iseng build via CMake)
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# VSCode
+.vscode/
+
+# CLion
+.idea/
