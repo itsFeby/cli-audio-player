@@ -6,17 +6,59 @@
 #include <atomic>
 #include <chrono>
 #include <iomanip>
+#include <string>
 
 namespace fs = std::filesystem;
 
-void displayPlayer(const std::string& songName, const std::string& status) {
-    system("clear || cls"); // Clear the terminal (works for both Linux/macOS and Windows)
+class MarqueeText {
+private:
+    std::string text;
+    size_t position;
+    size_t displayWidth;
+    std::chrono::time_point<std::chrono::steady_clock> lastUpdate;
+    std::chrono::milliseconds delay;
+    bool needsMarquee;
+
+public:
+    MarqueeText(const std::string& t, size_t width, std::chrono::milliseconds delay = std::chrono::milliseconds(200))
+        : text(t), position(0), displayWidth(width), delay(delay) {
+        needsMarquee = text.length() > displayWidth;
+        lastUpdate = std::chrono::steady_clock::now();
+    }
+
+    std::string getDisplayText() {
+        if (!needsMarquee) {
+            return text;
+        }
+
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastUpdate > delay) {
+            position = (position + 1) % (text.length() + 3); // +3 for spacing
+            lastUpdate = now;
+        }
+
+        std::string display;
+        for (size_t i = 0; i < displayWidth; ++i) {
+            size_t textPos = (position + i) % (text.length() + 3);
+            if (textPos < text.length()) {
+                display += text[textPos];
+            } else {
+                display += ' '; // Add spaces after text
+            }
+        }
+
+        return display;
+    }
+};
+
+void displayPlayer(const std::string& songName, const std::string& status, MarqueeText& marquee) {
+    system("clear || cls");
 
     std::cout << "╔════════════════════════════╗\n";
     std::cout << "║     🎵 Terminal Player     ║\n";
     std::cout << "╠════════════════════════════╣\n";
-    std::cout << "║ Now Playing: " << std::left << std::setw(14) << songName << " \n";
-    std::cout << "║ Status     : " << std::left << std::setw(14) << status << " \n";
+    std::cout << "║ Now Playing: " << std::left << std::setw(14) << marquee.getDisplayText() << "║\n";
+    std::cout << "║ Status     : " << std::left << std::setw(14) << status << "║\n";
     std::cout << "╠════════════════════════════╣\n";
     std::cout << "║ Controls:                  ║\n";
     std::cout << "║ [P] Play/Pause             ║\n";
@@ -34,7 +76,6 @@ void displaySongList(const std::vector<fs::path>& songs) {
 
     for (size_t i = 0; i < songs.size(); ++i) {
         std::string songEntry = std::to_string(i + 1) + ". " + songs[i].filename().string();
-        // Trim if too long
         if (songEntry.length() > 36) {
             songEntry = songEntry.substr(0, 33) + "...";
         }
@@ -60,8 +101,8 @@ int main() {
 
     if (laguList.empty()) {
         std::cout << "╔════════════════════════════╗\n";
-        std::cout << "║   Gak ada lagu yang bisa   ║\n";
-        std::cout << "║        diputar.           ║\n";
+        std::cout << "║   Gak ada lagu yang bisa    ║\n";
+        std::cout << "║        diputar.            ║\n";
         std::cout << "╚════════════════════════════╝\n";
         return 1;
     }
@@ -96,9 +137,10 @@ int main() {
     std::atomic<bool> stop(false);
     std::atomic<bool> paused(false);
     std::string currentSong = laguList[pilihan - 1].filename().string();
+    MarqueeText marquee(currentSong, 14); // 14 characters width for display
 
     // Display initial player
-    displayPlayer(currentSong, "Playing");
+    displayPlayer(currentSong, "Playing", marquee);
 
     // Thread buat input kontrol
     std::thread inputThread([&]() {
@@ -109,35 +151,37 @@ int main() {
             if (cmd == 'p') {
                 if (!paused) {
                     music.pause();
-                    displayPlayer(currentSong, "Paused");
+                    displayPlayer(currentSong, "Paused", marquee);
                     paused = true;
                 } else {
                     music.play();
-                    displayPlayer(currentSong, "Playing");
+                    displayPlayer(currentSong, "Playing", marquee);
                     paused = false;
                 }
             } else if (cmd == 's') {
                 music.stop();
-                displayPlayer(currentSong, "Stopped");
+                displayPlayer(currentSong, "Stopped", marquee);
                 paused = false;
             } else if (cmd == 'q') {
                 stop = true;
                 music.stop();
-                displayPlayer(currentSong, "Quitting");
+                displayPlayer(currentSong, "Quitting", marquee);
                 std::this_thread::sleep_for(std::chrono::milliseconds(300));
                 break;
             }
         }
     });
 
-    // Main thread muter lagu
+    // Main thread untuk update display dan musik
     music.play();
-
-    // Tunggu sampai lagu selesai atau user quit
     while (!stop) {
+        displayPlayer(currentSong,
+                     paused ? "Paused" : (music.getStatus() == sf::SoundSource::Status::Playing ? "Playing" : "Stopped"),
+                     marquee);
+
         auto status = music.getStatus();
         if (status == sf::SoundSource::Status::Stopped && !paused) {
-            break; // lagu selesai dan gak dalam keadaan pause
+            break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
