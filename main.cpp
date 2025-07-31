@@ -33,7 +33,7 @@ public:
 
         auto now = std::chrono::steady_clock::now();
         if (now - lastUpdate > delay) {
-            position = (position + 1) % (text.length() + 3); // +3 for spacing
+            position = (position + 1) % (text.length() + 3);
             lastUpdate = now;
         }
 
@@ -43,7 +43,7 @@ public:
             if (textPos < text.length()) {
                 display += text[textPos];
             } else {
-                display += ' '; // Add spaces after text
+                display += ' ';
             }
         }
 
@@ -51,27 +51,42 @@ public:
     }
 };
 
-void displayPlayer(const std::string& songName, const std::string& status, MarqueeText& marquee) {
+void displayPlayer(const std::string& songName, const std::string& status, MarqueeText& marquee,
+                  const std::string& playbackMode, sf::Time currentTime, sf::Time duration,
+                  const std::string& nextSong = "") {
     system("clear || cls");
 
-    std::cout << "╔════════════════════════════╗\n";
-    std::cout << "║     🎵 Terminal Player     ║\n";
-    std::cout << "╠════════════════════════════╣\n";
-    std::cout << "║ Now Playing: " << std::left << std::setw(14) << marquee.getDisplayText() << "║\n";
-    std::cout << "║ Status     : " << std::left << std::setw(14) << status << "║\n";
-    std::cout << "╠════════════════════════════╣\n";
-    std::cout << "║ Controls:                  ║\n";
-    std::cout << "║ [P] Play/Pause             ║\n";
-    std::cout << "║ [S] Stop                   ║\n";
-    std::cout << "║ [Q] Quit                   ║\n";
-    std::cout << "╚════════════════════════════╝\n";
+    auto toTimeString = [](sf::Time time) {
+        int seconds = static_cast<int>(time.asSeconds());
+        return std::to_string(seconds / 60) + ":" +
+              (seconds % 60 < 10 ? "0" : "") + std::to_string(seconds % 60);
+    };
+
+    std::cout << "╔════════════════════════════════════════╗\n";
+    std::cout << "║            🎵 Terminal Player          ║\n";
+    std::cout << "╠════════════════════════════════════════╣\n";
+    std::cout << "║ Now Playing: " << std::left << std::setw(26) << marquee.getDisplayText() << "║\n";
+    std::cout << "║ Status     : " << std::left << std::setw(26) << status << "║\n";
+    std::cout << "║ Mode       : " << std::left << std::setw(26) << playbackMode << "║\n";
+    std::cout << "║ Time       : " << std::left << std::setw(26)
+              << toTimeString(currentTime) + " / " + toTimeString(duration) << "║\n";
+    if (!nextSong.empty()) {
+        std::cout << "║ Next Song  : " << std::left << std::setw(26) << nextSong << "║\n";
+    }
+    std::cout << "╠════════════════════════════════════════╣\n";
+    std::cout << "║ Controls:                              ║\n";
+    std::cout << "║ [P] Play/Pause      [N] Next Track     ║\n";
+    std::cout << "║ [S] Stop            [B] Previous Track ║\n";
+    std::cout << "║ [F] Forward (+10s)  [Q] Quit           ║\n";
+    std::cout << "║ [R] Backward (-10s)                    ║\n";
+    std::cout << "╚════════════════════════════════════════╝\n";
 }
 
 void displaySongList(const std::vector<fs::path>& songs) {
     system("clear || cls");
 
     std::cout << "╔════════════════════════════════════════╗\n";
-    std::cout << "║          🎼 Daftar Lagu                ║\n";
+    std::cout << "║             🎼 Daftar Lagu             ║\n";
     std::cout << "╠════════════════════════════════════════╣\n";
 
     for (size_t i = 0; i < songs.size(); ++i) {
@@ -116,31 +131,44 @@ int main() {
     std::cout << "║ mau diputar:               ║\n";
     std::cout << "╚════════════════════════════╝\n";
     std::cout << "➤ ";
-    int pilihan;
-    std::cin >> pilihan;
+    int currentTrack;
+    std::cin >> currentTrack;
 
-    if (pilihan < 1 || pilihan > laguList.size()) {
+    if (currentTrack < 1 || currentTrack > laguList.size()) {
         std::cout << "╔════════════════════════════╗\n";
         std::cout << "║     Nomor gak valid.       ║\n";
         std::cout << "╚════════════════════════════╝\n";
         return 1;
     }
 
+    currentTrack--; // Convert to 0-based index
+
     sf::Music music;
-    if (!music.openFromFile(laguList[pilihan - 1].string())) {
+    std::atomic<bool> stop(false);
+    std::atomic<bool> paused(false);
+    std::string playbackMode = "Normal";
+    sf::Time jumpDuration = sf::seconds(10);
+    MarqueeText* marquee = nullptr;
+
+    auto loadAndPlay = [&](int trackIndex) {
+        if (trackIndex < 0 || trackIndex >= laguList.size()) return false;
+
+        if (music.openFromFile(laguList[trackIndex].string())) {
+            currentTrack = trackIndex;
+            if (marquee) delete marquee;
+            marquee = new MarqueeText(laguList[currentTrack].filename().string(), 26);
+            music.play();
+            return true;
+        }
+        return false;
+    };
+
+    if (!loadAndPlay(currentTrack)) {
         std::cout << "╔════════════════════════════╗\n";
         std::cout << "║     Gagal buka file.       ║\n";
         std::cout << "╚════════════════════════════╝\n";
         return 1;
     }
-
-    std::atomic<bool> stop(false);
-    std::atomic<bool> paused(false);
-    std::string currentSong = laguList[pilihan - 1].filename().string();
-    MarqueeText marquee(currentSong, 14); // 14 characters width for display
-
-    // Display initial player
-    displayPlayer(currentSong, "Playing", marquee);
 
     // Thread buat input kontrol
     std::thread inputThread([&]() {
@@ -148,46 +176,84 @@ int main() {
         while (!stop) {
             std::cin >> cmd;
             cmd = tolower(cmd);
+
             if (cmd == 'p') {
                 if (!paused) {
                     music.pause();
-                    displayPlayer(currentSong, "Paused", marquee);
                     paused = true;
                 } else {
                     music.play();
-                    displayPlayer(currentSong, "Playing", marquee);
                     paused = false;
                 }
-            } else if (cmd == 's') {
+            }
+            else if (cmd == 's') {
                 music.stop();
-                displayPlayer(currentSong, "Stopped", marquee);
                 paused = false;
-            } else if (cmd == 'q') {
+            }
+            else if (cmd == 'f') { // Forward 10 seconds
+                sf::Time newTime = music.getPlayingOffset() + jumpDuration;
+                if (newTime < music.getDuration()) {
+                    music.setPlayingOffset(newTime);
+                } else {
+                    music.setPlayingOffset(music.getDuration());
+                }
+            }
+            else if (cmd == 'r') { // Rewind 10 seconds
+                sf::Time newTime = music.getPlayingOffset() - jumpDuration;
+                if (newTime > sf::Time::Zero) {
+                    music.setPlayingOffset(newTime);
+                } else {
+                    music.setPlayingOffset(sf::Time::Zero);
+                }
+            }
+            else if (cmd == 'n') { // Next track
+                music.stop();
+                if (!loadAndPlay(currentTrack + 1)) {
+                    loadAndPlay(0); // Loop to first track
+                }
+            }
+            else if (cmd == 'b') { // Previous track
+                music.stop();
+                if (!loadAndPlay(currentTrack - 1)) {
+                    loadAndPlay(laguList.size() - 1); // Loop to last track
+                }
+            }
+            else if (cmd == 'q') {
                 stop = true;
                 music.stop();
-                displayPlayer(currentSong, "Quitting", marquee);
-                std::this_thread::sleep_for(std::chrono::milliseconds(300));
                 break;
             }
         }
     });
 
     // Main thread untuk update display dan musik
-    music.play();
     while (!stop) {
-        displayPlayer(currentSong,
-                     paused ? "Paused" : (music.getStatus() == sf::SoundSource::Status::Playing ? "Playing" : "Stopped"),
-                     marquee);
+        std::string nextSong = "";
+        if (currentTrack + 1 < laguList.size()) {
+            nextSong = laguList[currentTrack + 1].filename().string();
+            if (nextSong.length() > 26) {
+                nextSong = nextSong.substr(0, 23) + "...";
+            }
+        }
+
+        displayPlayer(laguList[currentTrack].filename().string(),
+                    paused ? "Paused" : (music.getStatus() == sf::SoundSource::Status::Playing ? "Playing" : "Stopped"),
+                    *marquee, playbackMode, music.getPlayingOffset(), music.getDuration(), nextSong);
 
         auto status = music.getStatus();
         if (status == sf::SoundSource::Status::Stopped && !paused) {
-            break;
+            // Auto-play next track when current finishes
+            music.stop();
+            if (!loadAndPlay(currentTrack + 1)) {
+                stop = true; // End of playlist
+            }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     stop = true;
     inputThread.join();
+    if (marquee) delete marquee;
 
     return 0;
 }
