@@ -4,7 +4,7 @@ Pemutar audio minimalis via terminal, ditulis dengan C++.
 Gak ada UI, gak ada warna, cuma suara.
 
 Saat ini hanya support file dengan ekstensi .wav atau .ogg
-
+### Akan dikembangkan lebih jauh lagi, nanti... jika aku nggak males-malesan
 
 ## Fitur
 
