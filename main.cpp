@@ -7,8 +7,12 @@
 #include <chrono>
 #include <iomanip>
 #include <string>
+#include <mutex>
 
 namespace fs = std::filesystem;
+
+std::mutex displayMutex;
+std::string currentInput;
 
 class MarqueeText {
 private:
@@ -54,7 +58,13 @@ public:
 void displayPlayer(const std::string& songName, const std::string& status, MarqueeText& marquee,
                   const std::string& playbackMode, sf::Time currentTime, sf::Time duration,
                   const std::string& nextSong = "") {
-    system("clear || cls");
+    std::lock_guard<std::mutex> lock(displayMutex);
+
+    // Save cursor position
+    std::cout << "\033[s";
+
+    // Move cursor to top-left
+    std::cout << "\033[H";
 
     auto toTimeString = [](sf::Time time) {
         int seconds = static_cast<int>(time.asSeconds());
@@ -80,6 +90,14 @@ void displayPlayer(const std::string& songName, const std::string& status, Marqu
     std::cout << "║ [F] Forward (+10s)  [Q] Quit           ║\n";
     std::cout << "║ [R] Backward (-10s)                    ║\n";
     std::cout << "╚════════════════════════════════════════╝\n";
+
+    // Restore cursor position
+    std::cout << "\033[u";
+
+    // If there's partial input, redisplay it
+    if (!currentInput.empty()) {
+        std::cout << currentInput << std::flush;
+    }
 }
 
 void displaySongList(const std::vector<fs::path>& songs) {
@@ -150,8 +168,13 @@ int main() {
     sf::Time jumpDuration = sf::seconds(10);
     MarqueeText* marquee = nullptr;
 
-    auto loadAndPlay = [&](int trackIndex) {
-        if (trackIndex < 0 || trackIndex >= laguList.size()) return false;
+    auto loadAndPlay = [&](int trackIndex) -> bool {
+        // Handle wrap-around for playlist
+        if (trackIndex < 0) {
+            trackIndex = laguList.size() - 1;
+        } else if (trackIndex >= laguList.size()) {
+            trackIndex = 0;
+        }
 
         if (music.openFromFile(laguList[trackIndex].string())) {
             currentTrack = trackIndex;
@@ -174,7 +197,10 @@ int main() {
     std::thread inputThread([&]() {
         char cmd;
         while (!stop) {
+            currentInput.clear();
             std::cin >> cmd;
+            currentInput += cmd;
+
             cmd = tolower(cmd);
 
             if (cmd == 'p') {
@@ -206,17 +232,13 @@ int main() {
                     music.setPlayingOffset(sf::Time::Zero);
                 }
             }
-            else if (cmd == 'n') { // Next track
+            else if (cmd == 'n') { // Next track (with wrap-around)
                 music.stop();
-                if (!loadAndPlay(currentTrack + 1)) {
-                    loadAndPlay(0); // Loop to first track
-                }
+                loadAndPlay(currentTrack + 1);
             }
-            else if (cmd == 'b') { // Previous track
+            else if (cmd == 'b') { // Previous track (with wrap-around)
                 music.stop();
-                if (!loadAndPlay(currentTrack - 1)) {
-                    loadAndPlay(laguList.size() - 1); // Loop to last track
-                }
+                loadAndPlay(currentTrack - 1);
             }
             else if (cmd == 'q') {
                 stop = true;
@@ -228,25 +250,22 @@ int main() {
 
     // Main thread untuk update display dan musik
     while (!stop) {
-        std::string nextSong = "";
-        if (currentTrack + 1 < laguList.size()) {
-            nextSong = laguList[currentTrack + 1].filename().string();
-            if (nextSong.length() > 26) {
-                nextSong = nextSong.substr(0, 23) + "...";
-            }
+        // Determine next song (with wrap-around)
+        int nextTrackIndex = (currentTrack + 1) % laguList.size();
+        std::string nextSong = laguList[nextTrackIndex].filename().string();
+        if (nextSong.length() > 26) {
+            nextSong = nextSong.substr(0, 23) + "...";
         }
 
         displayPlayer(laguList[currentTrack].filename().string(),
-                    paused ? "Paused" : (music.getStatus() == sf::SoundSource::Status::Playing ? "Playing" : "Stopped"),
-                    *marquee, playbackMode, music.getPlayingOffset(), music.getDuration(), nextSong);
+                     paused ? "Paused" : (music.getStatus() == sf::SoundSource::Status::Playing ? "Playing" : "Stopped"),
+                     *marquee, playbackMode, music.getPlayingOffset(), music.getDuration(), nextSong);
 
         auto status = music.getStatus();
         if (status == sf::SoundSource::Status::Stopped && !paused) {
-            // Auto-play next track when current finishes
+            // Auto-play next track when current finishes (with wrap-around)
             music.stop();
-            if (!loadAndPlay(currentTrack + 1)) {
-                stop = true; // End of playlist
-            }
+            loadAndPlay(currentTrack + 1);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
