@@ -5,8 +5,44 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <iomanip>
 
 namespace fs = std::filesystem;
+
+void displayPlayer(const std::string& songName, const std::string& status) {
+    system("clear || cls"); // Clear the terminal (works for both Linux/macOS and Windows)
+
+    std::cout << "╔════════════════════════════╗\n";
+    std::cout << "║     🎵 Terminal Player     ║\n";
+    std::cout << "╠════════════════════════════╣\n";
+    std::cout << "║ Now Playing: " << std::left << std::setw(14) << songName << " \n";
+    std::cout << "║ Status     : " << std::left << std::setw(14) << status << " \n";
+    std::cout << "╠════════════════════════════╣\n";
+    std::cout << "║ Controls:                  ║\n";
+    std::cout << "║ [P] Play/Pause             ║\n";
+    std::cout << "║ [S] Stop                   ║\n";
+    std::cout << "║ [Q] Quit                   ║\n";
+    std::cout << "╚════════════════════════════╝\n";
+}
+
+void displaySongList(const std::vector<fs::path>& songs) {
+    system("clear || cls");
+
+    std::cout << "╔════════════════════════════════════════╗\n";
+    std::cout << "║          🎼 Daftar Lagu                ║\n";
+    std::cout << "╠════════════════════════════════════════╣\n";
+
+    for (size_t i = 0; i < songs.size(); ++i) {
+        std::string songEntry = std::to_string(i + 1) + ". " + songs[i].filename().string();
+        // Trim if too long
+        if (songEntry.length() > 36) {
+            songEntry = songEntry.substr(0, 33) + "...";
+        }
+        std::cout << "║ " << std::left << std::setw(38) << songEntry << " ║\n";
+    }
+
+    std::cout << "╚════════════════════════════════════════╝\n";
+}
 
 int main() {
     std::string folderPath = "music";
@@ -16,66 +52,79 @@ int main() {
     for (const auto& entry : fs::directory_iterator(folderPath)) {
         if (entry.is_regular_file()) {
             auto ext = entry.path().extension().string();
-            if (ext == ".wav" || ext == ".WAV") {
+            if (ext == ".wav" || ext == ".WAV" || ext == ".mp3" || ext == ".MP3" || ext == ".ogg" || ext == ".OGG") {
                 laguList.push_back(entry.path());
             }
         }
     }
 
     if (laguList.empty()) {
-        std::cout << "Gak ada lagu yang bisa diputar.\n";
+        std::cout << "╔════════════════════════════╗\n";
+        std::cout << "║   Gak ada lagu yang bisa   ║\n";
+        std::cout << "║        diputar.           ║\n";
+        std::cout << "╚════════════════════════════╝\n";
         return 1;
     }
 
-    // Tampilkan daftar lagu
-    std::cout << "Daftar lagu:\n";
-    for (size_t i = 0; i < laguList.size(); ++i) {
-        std::cout << i + 1 << ". " << laguList[i].filename().string() << "\n";
-    }
+    // Tampilkan daftar lagu dengan ASCII art
+    displaySongList(laguList);
 
     // Pilih lagu
-    std::cout << "\nMasukkan nomor lagu yang mau diputar: ";
+    std::cout << "\n╔════════════════════════════╗\n";
+    std::cout << "║ Masukkan nomor lagu yang   ║\n";
+    std::cout << "║ mau diputar:               ║\n";
+    std::cout << "╚════════════════════════════╝\n";
+    std::cout << "➤ ";
     int pilihan;
     std::cin >> pilihan;
 
     if (pilihan < 1 || pilihan > laguList.size()) {
-        std::cout << "Nomor gak valid.\n";
+        std::cout << "╔════════════════════════════╗\n";
+        std::cout << "║     Nomor gak valid.       ║\n";
+        std::cout << "╚════════════════════════════╝\n";
         return 1;
     }
 
     sf::Music music;
     if (!music.openFromFile(laguList[pilihan - 1].string())) {
-        std::cout << "Gagal buka file.\n";
+        std::cout << "╔════════════════════════════╗\n";
+        std::cout << "║     Gagal buka file.       ║\n";
+        std::cout << "╚════════════════════════════╝\n";
         return 1;
     }
 
     std::atomic<bool> stop(false);
     std::atomic<bool> paused(false);
+    std::string currentSong = laguList[pilihan - 1].filename().string();
+
+    // Display initial player
+    displayPlayer(currentSong, "Playing");
 
     // Thread buat input kontrol
     std::thread inputThread([&]() {
-        std::cout << "\nKontrol: [p]ause/resume, [s]top, [q]uit\n";
         char cmd;
         while (!stop) {
             std::cin >> cmd;
+            cmd = tolower(cmd);
             if (cmd == 'p') {
                 if (!paused) {
                     music.pause();
-                    std::cout << "⏸ Paused\n";
+                    displayPlayer(currentSong, "Paused");
                     paused = true;
                 } else {
                     music.play();
-                    std::cout << "▶️ Resume\n";
+                    displayPlayer(currentSong, "Playing");
                     paused = false;
                 }
             } else if (cmd == 's') {
                 music.stop();
-                std::cout << "⏹ Stopped\n";
+                displayPlayer(currentSong, "Stopped");
                 paused = false;
             } else if (cmd == 'q') {
                 stop = true;
                 music.stop();
-                std::cout << "👋 Keluar\n";
+                displayPlayer(currentSong, "Quitting");
+                std::this_thread::sleep_for(std::chrono::milliseconds(300));
                 break;
             }
         }
@@ -83,7 +132,6 @@ int main() {
 
     // Main thread muter lagu
     music.play();
-    std::cout << "\n🎶 Memutar: " << laguList[pilihan - 1].filename().string() << "\n";
 
     // Tunggu sampai lagu selesai atau user quit
     while (!stop) {
