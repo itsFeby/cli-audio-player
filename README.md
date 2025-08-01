@@ -1,4 +1,5 @@
 # CLI Audio Player 🎧
+## This is personal project
 
 Pemutar audio minimalis via terminal, ditulis dengan C++.  
 Gak ada UI, gak ada warna, cuma suara.
