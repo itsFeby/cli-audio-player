@@ -55,16 +55,21 @@ public:
     }
 };
 
+void clearScreen() {
+    // Use system-specific clear command
+    #ifdef _WIN32
+        system("cls");
+    #else
+        system("clear");
+    #endif
+}
+
 void displayPlayer(const std::string& songName, const std::string& status, MarqueeText& marquee,
                   const std::string& playbackMode, sf::Time currentTime, sf::Time duration,
                   const std::string& nextSong = "") {
     std::lock_guard<std::mutex> lock(displayMutex);
 
-    // Save cursor position
-    std::cout << "\033[s";
-
-    // Move cursor to top-left
-    std::cout << "\033[H";
+    clearScreen();  // Clear the entire screen before redrawing
 
     auto toTimeString = [](sf::Time time) {
         int seconds = static_cast<int>(time.asSeconds());
@@ -90,18 +95,10 @@ void displayPlayer(const std::string& songName, const std::string& status, Marqu
     std::cout << "║ [F] Forward (+10s)  [Q] Quit           ║\n";
     std::cout << "║ [R] Backward (-10s)                    ║\n";
     std::cout << "╚════════════════════════════════════════╝\n";
-
-    // Restore cursor position
-    std::cout << "\033[u";
-
-    // If there's partial input, redisplay it
-    if (!currentInput.empty()) {
-        std::cout << currentInput << std::flush;
-    }
 }
 
 void displaySongList(const std::vector<fs::path>& songs) {
-    system("clear || cls");
+    clearScreen();
 
     std::cout << "╔════════════════════════════════════════╗\n";
     std::cout << "║             🎼 Daftar Lagu             ║\n";
@@ -133,6 +130,7 @@ int main() {
     }
 
     if (laguList.empty()) {
+        clearScreen();
         std::cout << "╔════════════════════════════╗\n";
         std::cout << "║   Gak ada lagu yang bisa    ║\n";
         std::cout << "║        diputar.            ║\n";
@@ -153,6 +151,7 @@ int main() {
     std::cin >> currentTrack;
 
     if (currentTrack < 1 || currentTrack > laguList.size()) {
+        clearScreen();
         std::cout << "╔════════════════════════════╗\n";
         std::cout << "║     Nomor gak valid.       ║\n";
         std::cout << "╚════════════════════════════╝\n";
@@ -187,20 +186,21 @@ int main() {
     };
 
     if (!loadAndPlay(currentTrack)) {
+        clearScreen();
         std::cout << "╔════════════════════════════╗\n";
         std::cout << "║     Gagal buka file.       ║\n";
         std::cout << "╚════════════════════════════╝\n";
         return 1;
     }
 
+    // Clear everything before showing player
+    clearScreen();
+
     // Thread buat input kontrol
     std::thread inputThread([&]() {
         char cmd;
         while (!stop) {
-            currentInput.clear();
             std::cin >> cmd;
-            currentInput += cmd;
-
             cmd = tolower(cmd);
 
             if (cmd == 'p') {
