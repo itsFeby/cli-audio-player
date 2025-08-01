@@ -78,7 +78,11 @@ void displayPlayer(const std::string& songName, const std::string& status, Marqu
     };
 
     std::cout << "╔════════════════════════════════════════╗\n";
-    std::cout << "║            🎵 Terminal Player          ║\n";
+    std::cout << "║          🎵 Terminal Player            ║\n";
+    std::cout << "║            Dibuat oleh Feby            ║\n";
+    std::cout << "║                 /\\_/\\                  ║\n";
+    std::cout << "║                ( o.o )                 ║\n";
+    std::cout << "║                 > ^ <                  ║\n";
     std::cout << "╠════════════════════════════════════════╣\n";
     std::cout << "║ Now Playing: " << std::left << std::setw(26) << marquee.getDisplayText() << "║\n";
     std::cout << "║ Status     : " << std::left << std::setw(26) << status << "║\n";
