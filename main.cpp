@@ -64,6 +64,26 @@ void clearScreen() {
     #endif
 }
 
+std::string createProgressBar(sf::Time currentTime, sf::Time duration, int width = 30) {
+    float progress = 0.0f;
+    if (duration != sf::Time::Zero) {
+        progress = currentTime.asSeconds() / duration.asSeconds();
+    }
+
+    int pos = static_cast<int>(width * progress);
+
+    std::string bar;
+    bar += "[";
+    for (int i = 0; i < width; ++i) {
+        if (i < pos) bar += "=";
+        else if (i == pos) bar += ">";
+        else bar += " ";
+    }
+    bar += "]";
+
+    return bar;
+}
+
 void displayPlayer(const std::string& songName, const std::string& status, MarqueeText& marquee,
                   const std::string& playbackMode, sf::Time currentTime, sf::Time duration,
                   const std::string& nextSong = "") {
@@ -76,6 +96,8 @@ void displayPlayer(const std::string& songName, const std::string& status, Marqu
         return std::to_string(seconds / 60) + ":" +
               (seconds % 60 < 10 ? "0" : "") + std::to_string(seconds % 60);
     };
+
+    std::string progressBar = createProgressBar(currentTime, duration);
 
     std::cout << "╔════════════════════════════════════════╗\n";
     std::cout << "║          🎵 Terminal Player            ║\n";
@@ -98,6 +120,9 @@ void displayPlayer(const std::string& songName, const std::string& status, Marqu
     std::cout << "║ [S] Stop            [B] Previous Track ║\n";
     std::cout << "║ [F] Forward (+10s)  [Q] Quit           ║\n";
     std::cout << "║ [R] Backward (-10s)                    ║\n";
+    std::cout << "╠════════════════════════════════════════╣\n";
+    std::cout << "║                ʕ •ᴥ•ʔ                  ║\n";
+    std::cout << "║    " << progressBar << "    ║\n";  // Progress bar added here
     std::cout << "╚════════════════════════════════════════╝\n";
 }
 
